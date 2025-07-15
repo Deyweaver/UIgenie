@@ -476,6 +476,28 @@
         .instructions-textarea:focus {
             border-color: var(--ms-color-blue-primary);
         }
+        
+        /* Streaming animation for code editor */
+        .streaming-code {
+            position: relative;
+        }
+        
+        .streaming-code::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: streaming 1.5s linear infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes streaming {
+            0% { background-position: 200% 0; }
+            100% { background-position: 0 0; }
+        }
     </style>
 </head>
 <body>
@@ -564,7 +586,9 @@
             matchBrackets: true,
             tabSize: 4,
             indentUnit: 4,
-            indentWithTabs: false
+            indentWithTabs: false,
+            placeholder: '# Generated code will appear here...',
+            viewportMargin: Infinity
         });
 
         // Elements
@@ -621,8 +645,11 @@
             // Add user message to chat
             addMessage(prompt, 'user');
             
-            // Clear any previous code
-            codeEditor.setValue('');
+            // Clear any previous code without changing editor appearance
+            codeEditor.setValue('// Generating code...');
+            
+            // Add streaming class to code editor
+            document.querySelector('.CodeMirror').classList.add('streaming-code');
             
             // Display loading state
             sendButton.disabled = true;
@@ -631,32 +658,45 @@
             sendLoading.style.display = 'inline-block';
 
             try {
-                // Create an EventSource for streaming response
-                const streamUrl = new URL('/generate-stream', window.location.origin);
-                
-                // First notify the server we're starting a streaming request
-                await fetch('/generate', {
+                // First initiate the streaming process with POST request
+                const initResponse = await fetch('/generate-stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt, stream: true })
+                    body: JSON.stringify({ prompt })
                 });
                 
-                // Create event source for streaming
-                const eventSource = new EventSource(streamUrl);
+                if (!initResponse.ok) {
+                    throw new Error(`Server error: ${initResponse.status}`);
+                }
+                
+                // Read the response as a stream
+                const reader = initResponse.body.getReader();
+                const decoder = new TextDecoder("utf-8");
                 let accumulatedCode = '';
                 
-                // Listen for messages
-                eventSource.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-                        
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        break;
+                    }
+                    
+                    // Process the chunk
+                    const chunk = decoder.decode(value, { stream: true });
+                    
+                    // Parse event data (each event starts with "data: ")
+                    const events = chunk.split("\n\n")
+                        .filter(line => line.startsWith("data: "))
+                        .map(line => JSON.parse(line.substring(6)));
+                    
+                    for (const data of events) {
                         // Check if this is a completion message
                         if (data.complete) {
                             // Update the final code
                             codeEditor.setValue(data.code);
                             
-                            // Clean up
-                            eventSource.close();
+                            // Remove streaming animation
+                            document.querySelector('.CodeMirror').classList.remove('streaming-code');
                             
                             // Add AI message to chat
                             addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
@@ -679,40 +719,22 @@
                             accumulatedCode = data.code;
                             codeEditor.setValue(accumulatedCode);
                             
-                            // Update button text to show progress
-                            sendButtonText.textContent = 'Generating...';
+                            // Highlight new content with subtle animation
+                            if (data.chunk && data.chunk.length > 0) {
+                                const currentLength = accumulatedCode.length;
+                                // Ensure we're at the end of the editor
+                                codeEditor.setCursor(codeEditor.lineCount(), 0);
+                                
+                                // Update progress indicator
+                                const percentComplete = Math.min(95, Math.floor(currentLength / 500 * 100));
+                                sendButtonText.textContent = `Generating... ${percentComplete}%`;
+                            }
                         }
-                    } catch (e) {
-                        console.error('Error parsing stream data:', e);
-                        eventSource.close();
-                        showToast(`Error processing response: ${e.message}`, 'error');
-                        resetUIState();
                     }
-                };
-                
-                // Handle errors
-                eventSource.onerror = function(error) {
-                    console.error('EventSource error:', error);
-                    eventSource.close();
-                    addMessage('Error generating UI code. Please try again.', 'ai');
-                    showToast('Error generating code. Connection lost.', 'error');
-                    resetUIState();
-                };
-                
-                // POST the actual prompt to initiate streaming
-                fetch(streamUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt })
-                }).catch(error => {
-                    console.error('Fetch error:', error);
-                    eventSource.close();
-                    showToast(`Error: ${error.message}`, 'error');
-                    resetUIState();
-                });
-                
+                }
             } catch (error) {
                 console.error('Error:', error);
+                document.querySelector('.CodeMirror').classList.remove('streaming-code');
                 addMessage(`Error: ${error.message}`, 'ai');
                 showToast(`Error: ${error.message}`, 'error');
                 resetUIState();
@@ -720,6 +742,12 @@
         }
         
         function resetUIState() {
+            // Remove streaming animation if still present
+            const codeMirrorElement = document.querySelector('.CodeMirror');
+            if (codeMirrorElement) {
+                codeMirrorElement.classList.remove('streaming-code');
+            }
+            
             // Clear input regardless of success or failure
             chatInput.value = '';
             chatInput.style.height = 'auto'; // Reset any height adjustments

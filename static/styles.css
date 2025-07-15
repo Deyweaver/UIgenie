@@ -18,6 +18,12 @@
     --ms-motion-duration-3: 300ms;
 }
 
+/* Code editor placeholder */
+.cm-placeholder {
+    color: #6a737d !important;
+    opacity: 0.8;
+}
+
 /* Message animations */
 .message {
     animation: message-fade-in 0.2s ease-out forwards;
@@ -34,6 +40,35 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Code streaming animation */
+.streaming-code {
+    position: relative;
+}
+
+.streaming-code .CodeMirror-cursor {
+    width: 3px !important;
+    background-color: var(--ms-color-blue-primary) !important;
+    animation: cursor-blink 1s infinite !important;
+    border-left: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+@keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.code-chunk-new {
+    background-color: rgba(0, 120, 212, 0.1);
+    animation: highlight-fade 1.5s ease-out forwards;
+}
+
+@keyframes highlight-fade {
+    0% { background-color: rgba(0, 120, 212, 0.2); }
+    100% { background-color: transparent; }
 }
 
 /* Improved scrollbar */
@@ -60,11 +95,18 @@
     font-size: 13px !important;
     line-height: 1.5 !important;
     border-radius: 0 !important;
+    background-color: var(--ms-color-gray-190) !important;
+    color: #e0e0e0 !important;
+    height: 100% !important;
 }
 
 .CodeMirror-gutters {
     background-color: #1e1e1e !important;
     border-right: 1px solid #333333 !important;
+}
+
+.CodeMirror-empty {
+    background-color: var(--ms-color-gray-190) !important;
 }
 
 /* Button hover effects */
