@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CustomTkinter AI UI Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        :root {
+            --ms-color-white: #ffffff;
+            --ms-color-gray-10: #faf9f8;
+            --ms-color-gray-20: #f3f2f1;
+            --ms-color-gray-30: #edebe9;
+            --ms-color-gray-40: #d2d0ce;
+            --ms-color-gray-130: #605e5c;
+            --ms-color-gray-160: #323130;
+            --ms-color-gray-190: #201f1e;
+            --ms-color-blue-primary: #0078d4;
+            --ms-color-blue-hover: #106ebe;
+            --ms-color-blue-pressed: #005a9e;
+            --ms-color-green: #107c10;
+            --ms-color-red: #d13438;
+            --ms-depth-4: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
+            --ms-depth-8: 0 3.2px 7.2px 0 rgba(0, 0, 0, 0.132), 0 0.6px 1.8px 0 rgba(0, 0, 0, 0.108);
+            --ms-depth-16: 0 6.4px 14.4px 0 rgba(0, 0, 0, 0.132), 0 1.2px 3.6px 0 rgba(0, 0, 0, 0.108);
+            --ms-motion-duration-1: 100ms;
+            --ms-motion-duration-2: 200ms;
+            --ms-motion-duration-3: 300ms;
+            --ms-motion-ease-out: cubic-bezier(0, 0, 0, 1);
+            --ms-border-radius-small: 2px;
+            --ms-border-radius-medium: 4px;
+            --ms-border-radius-large: 6px;
+            --ms-font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', sans-serif;
+            --ms-font-size-small: 12px;
+            --ms-font-size-medium: 14px;
+            --ms-font-size-large: 16px;
+            --ms-font-weight-regular: 400;
+            --ms-font-weight-medium: 500;
+            --ms-font-weight-semibold: 600;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-gray-160);
+            font-family: var(--ms-font-family);
+            font-size: var(--ms-font-size-medium);
+            line-height: 1.5;
+        }
+        
+        .app-container {
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 45% 55%;
+            overflow: hidden;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            border-right: 1px solid var(--ms-color-gray-30);
+        }
+        
+        .code-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative; /* For fixed positioning of children */
+            overflow: hidden; /* Prevent overflow */
+        }
+        
+        .chat-header,        .chat-header, .code-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--ms-color-gray-30);
+            background-color: var(--ms-color-white);
+            display: flex;
+            align-items: center;
+            height: 60px; /* Fixed height */
+            z-index: 10;
+        }
+        
+        .header-content {
+            flex: 1;
+        }
+        
+        .header-title {
+            font-size: var(--ms-font-size-large);
+            font-weight: var(--ms-font-weight-semibold);
+            color: var(--ms-color-gray-160);
+            margin: 0;
+        }
+        
+        .header-subtitle {
+            font-size: var(--ms-font-size-small);
+            color: var(--ms-color-gray-130);
+            margin: 0;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 12px 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--ms-color-gray-10);
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            border-radius: var(--ms-border-radius-large);
+            font-size: var(--ms-font-size-medium);
+        }
+        
+        .user-message {
+            background-color: var(--ms-color-blue-primary);
+            color: var(--ms-color-white);
+            align-self: flex-end;
+            box-shadow: var(--ms-depth-4);
+        }
+        
+        .ai-message {
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-gray-160);
+            align-self: flex-start;
+            border: 1px solid var(--ms-color-gray-30);
+            box-shadow: var(--ms-depth-4);
+        }
+        
+        .chat-input-wrapper {
+            padding: 12px 16px;
+            background-color: var(--ms-color-white);
+            border-top: 1px solid var(--ms-color-gray-30);
+        }
+        
+        .chat-input-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        .chat-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--ms-color-gray-40);
+            border-radius: var(--ms-border-radius-medium);
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-gray-160);
+            font-family: var(--ms-font-family);
+            font-size: var(--ms-font-size-medium);
+            resize: none;
+            outline: none;
+            transition: border-color var(--ms-motion-duration-1) var(--ms-motion-ease-out);
+        }
+        
+        .chat-input:focus {
+            border-color: var(--ms-color-blue-primary);
+        }
+        
+        .button-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+            gap: 8px;
+        }
+        
+        .ms-button {
+            padding: 6px 16px;
+            border-radius: var(--ms-border-radius-medium);
+            font-family: var(--ms-font-family);
+            font-size: var(--ms-font-size-small);
+            font-weight: var(--ms-font-weight-medium);
+            cursor: pointer;
+            transition: background-color var(--ms-motion-duration-1) var(--ms-motion-ease-out);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 80px;
+            height: 32px;
+            outline: none;
+            border: none;
+            text-align: center;
+        }
+        
+        .ms-button-primary {
+            background-color: var(--ms-color-blue-primary);
+            color: var(--ms-color-white);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ms-button-primary:hover {
+            background-color: var(--ms-color-blue-hover);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+        }
+        
+        .ms-button-primary:active {
+            background-color: var(--ms-color-blue-pressed);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) inset;
+        }
+        
+        .ms-button-default {
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-gray-160);
+            border: 1px solid var(--ms-color-gray-40);
+        }
+        
+        .ms-button-default:hover {
+            background-color: var(--ms-color-gray-20);
+        }
+        
+        .ms-button-default:active {
+            background-color: var(--ms-color-gray-30);
+        }
+        
+        .ms-button-success {
+            background-color: var(--ms-color-green);
+            color: var(--ms-color-white);
+        }
+        
+        .ms-button-danger {
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-red);
+            border: 1px solid var(--ms-color-gray-40);
+        }
+        
+        .ms-button-danger:hover {
+            background-color: var(--ms-color-gray-20);
+        }
+        
+        .ms-button:disabled,
+        .ms-button.disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            /* Ensure text remains visible even when disabled */
+            color: inherit;
+        }
+        
+        .ms-button.processing {
+            /* Special styling for buttons in processing state */
+            position: relative;
+            opacity: 0.9;
+            pointer-events: none;
+            background-color: var(--ms-color-blue-hover) !important;
+        }
+        
+        .CodeMirror {
+            height: 100% !important;
+            width: 100% !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .code-content {
+            position: absolute;
+            top: 60px; /* Height of the header */
+            left: 0;
+            right: 0;
+            bottom: 52px; /* Height of the actions bar */
+            overflow: auto;
+            background-color: var(--ms-color-gray-190);
+        }
+        
+        .code-actions {
+            padding: 10px 16px;
+            display: flex;
+            justify-content: flex-end;
+            background-color: var(--ms-color-white);
+            border-top: 1px solid var(--ms-color-gray-30);
+            gap: 8px;
+            box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.05);
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            height: 52px; /* Fixed height */
+        }
+        
+        .preview-status {
+            display: inline-flex;
+            align-items: center;
+            font-size: var(--ms-font-size-small);
+            font-weight: var(--ms-font-weight-medium);
+            margin-right: auto;
+            padding: 4px 8px;
+            border-radius: 2px;
+        }
+        
+        .status-running {
+            color: var(--ms-color-green);
+        }
+        
+        .status-running::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--ms-color-green);
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .status-stopped {
+            color: var(--ms-color-gray-130);
+        }
+        
+        .status-stopped::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--ms-color-gray-130);
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            /* Ensure loading spinner stays visible */
+            pointer-events: none;
+            vertical-align: middle;
+        }
+        
+        .ms-button-default .loading {
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-top-color: var(--ms-color-gray-160);
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 16px;
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-gray-160);
+            border-radius: var(--ms-border-radius-medium);
+            box-shadow: var(--ms-depth-8);
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity var(--ms-motion-duration-2) var(--ms-motion-ease-out),
+                        transform var(--ms-motion-duration-2) var(--ms-motion-ease-out);
+            z-index: 50;
+            max-width: 300px;
+            font-size: var(--ms-font-size-small);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+            visibility: hidden; /* Hide by default */
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+            visibility: visible; /* Show only with the show class */
+        }
+        
+        .toast.success {
+            border-left: 3px solid var(--ms-color-green);
+        }
+        
+        .toast.error {
+            border-left: 3px solid var(--ms-color-red);
+        }
+        
+        .toast-close {
+            background: none;
+            border: none;
+            color: var(--ms-color-gray-130);
+            font-size: 18px;
+            cursor: pointer;
+            margin-left: 12px;
+            padding: 0;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+        
+        .toast-close:hover {
+            background-color: var(--ms-color-gray-20);
+            color: var(--ms-color-gray-160);
+        }
+        
+        /* Custom Instructions Panel */
+        .custom-instructions-panel {
+            padding: 12px 16px;
+            border-top: 1px solid var(--ms-color-gray-30);
+            background-color: var(--ms-color-gray-10);
+        }
+        
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .panel-title {
+            font-size: var(--ms-font-size-small);
+            font-weight: var(--ms-font-weight-semibold);
+            color: var(--ms-color-gray-160);
+        }
+        
+        .panel-toggle {
+            font-size: var(--ms-font-size-small);
+            color: var(--ms-color-blue-primary);
+            cursor: pointer;
+            user-select: none;
+            background: none;
+            border: none;
+        }
+        
+        .panel-content {
+            margin-top: 8px;
+        }
+        
+        .instructions-textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--ms-color-gray-40);
+            border-radius: var(--ms-border-radius-medium);
+            background-color: var(--ms-color-white);
+            color: var(--ms-color-gray-160);
+            font-family: var(--ms-font-family);
+            font-size: var(--ms-font-size-small);
+            resize: vertical;
+            height: 80px;
+            outline: none;
+        }
+        
+        .instructions-textarea:focus {
+            border-color: var(--ms-color-blue-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left side: Chat -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="header-content">
+                    <h1 class="header-title">CustomTkinter UI Generator</h1>
+                    <p class="header-subtitle">Design your desktop UI with natural language</p>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                <div class="message ai-message">
+                    Hi there! I can help you create CustomTkinter UIs using natural language. 
+                    Describe what you need, and I'll generate the code for you.
+                </div>
+            </div>
+            
+            <div class="custom-instructions-panel" id="instructions-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Custom Instructions</span>
+                    <button class="panel-toggle" id="toggle-instructions">Hide</button>
+                </div>
+                <div class="panel-content" id="instructions-content">
+                    <textarea class="instructions-textarea" id="custom-instructions" 
+                        placeholder="Add custom instructions for the AI (e.g., 'Use light mode', 'Add input validation')..."></textarea>
+                    <div class="button-container">
+                        <button class="ms-button ms-button-default" id="save-instructions-btn">Save</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input-wrapper">
+                <div class="chat-input-container">
+                    <textarea class="chat-input" id="chat-input" 
+                        placeholder="Describe the UI you want..." rows="2"></textarea>
+                    <div class="button-container">
+                        <button class="ms-button ms-button-primary" id="send-button">
+                            <span id="send-loading" class="loading" style="display: none;"></span>
+                            <span id="send-button-text">Generate UI</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right side: Code -->
+        <div class="code-container">
+            <div class="code-header">
+                <div class="header-content">
+                    <h2 class="header-title">Generated Code</h2>
+                    <p class="header-subtitle">CustomTkinter Python code</p>
+                </div>
+            </div>
+            
+            <div class="code-content">
+                <div id="code-editor" style="position: relative; width: 100%; height: 100%;"></div>
+            </div>
+            
+            <div class="code-actions">
+                <span class="preview-status status-stopped" id="preview-status">Preview not running</span>
+                <button class="ms-button ms-button-primary" id="preview-button">Run Preview</button>
+                <button class="ms-button ms-button-danger" id="stop-button" disabled>Stop</button>
+                <button class="ms-button ms-button-default" id="export-button">Export Code</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast">
+        <span id="toast-message"></span>
+        <button class="toast-close" id="toast-close">&times;</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    <script>
+        // Initialize CodeMirror
+        const codeEditor = CodeMirror(document.getElementById('code-editor'), {
+            mode: 'python',
+            theme: 'material-darker',
+            lineNumbers: true,
+            readOnly: false,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            tabSize: 4,
+            indentUnit: 4,
+            indentWithTabs: false
+        });
+
+        // Elements
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        const sendButtonText = document.getElementById('send-button-text');
+        const sendLoading = document.getElementById('send-loading');
+        const chatMessages = document.getElementById('chat-messages');
+        const customInstructions = document.getElementById('custom-instructions');
+        const saveInstructionsBtn = document.getElementById('save-instructions-btn');
+        const exportButton = document.getElementById('export-button');
+        const previewButton = document.getElementById('preview-button');
+        const stopButton = document.getElementById('stop-button');
+        const previewStatus = document.getElementById('preview-status');
+        const toggleInstructions = document.getElementById('toggle-instructions');
+        const instructionsContent = document.getElementById('instructions-content');
+        const toast = document.getElementById('toast');
+
+        // Preview state
+        let previewRunning = false;
+        let previewStatusInterval = null;
+
+        // Event listeners
+        sendButton.addEventListener('click', generateUI);
+        saveInstructionsBtn.addEventListener('click', saveInstructions);
+        exportButton.addEventListener('click', exportCode);
+        previewButton.addEventListener('click', runPreview);
+        stopButton.addEventListener('click', stopPreview);
+        toggleInstructions.addEventListener('click', toggleInstructionsPanel);
+        
+        // Enter key to send message
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                generateUI();
+            }
+        });
+
+        // Functions
+        async function generateUI() {
+            const prompt = chatInput.value.trim();
+            if (!prompt) return;
+
+            // Add user message to chat
+            addMessage(prompt, 'user');
+            
+            // Display loading state
+            sendButton.disabled = true;
+            sendButton.classList.add('processing');
+            sendButtonText.textContent = 'Generating...';
+            sendLoading.style.display = 'inline-block';
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Update code editor
+                codeEditor.setValue(data.code);
+                
+                // Add AI message to chat
+                addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
+                
+                // Clear input
+                chatInput.value = '';
+                
+                // Show success toast
+                showToast('Code generated successfully!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage(`Error: ${error.message}`, 'ai');
+                showToast(`Error: ${error.message}`, 'error');
+            } finally {
+                sendButton.disabled = false;
+                sendButton.classList.remove('processing');
+                sendButtonText.textContent = 'Generate UI';
+                sendLoading.style.display = 'none';
+            }
+        }
+
+        async function saveInstructions() {
+            const instructions = customInstructions.value;
+            
+            saveInstructionsBtn.disabled = true;
+            const originalText = saveInstructionsBtn.textContent;
+            saveInstructionsBtn.textContent = 'Saving...';
+            
+            try {
+                const response = await fetch('/update-instructions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ instructions })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    addMessage('✓ Custom instructions saved! I\'ll follow these guidelines when generating UI code.', 'ai');
+                    showToast('Custom instructions saved!', 'success');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage(`Error saving instructions: ${error.message}`, 'ai');
+                showToast(`Error saving instructions: ${error.message}`, 'error');
+            } finally {
+                saveInstructionsBtn.disabled = false;
+                saveInstructionsBtn.textContent = originalText;
+            }
+        }
+
+        async function exportCode() {
+            const code = codeEditor.getValue();
+            if (!code) {
+                showToast('No code to export!', 'error');
+                return;
+            }
+            
+            try {
+                // Create a download link
+                const blob = new Blob([code], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'customtkinter_ui.py';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                addMessage('Code exported successfully! You can now use it in your own projects.', 'ai');
+                showToast('Code exported successfully!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage(`Error exporting code: ${error.message}`, 'ai');
+                showToast(`Error exporting code: ${error.message}`, 'error');
+            }
+        }
+
+        async function runPreview() {
+            if (previewRunning) {
+                showToast('Preview is already running!', 'error');
+                return;
+            }
+            
+            previewButton.disabled = true;
+            previewButton.classList.add('processing');
+            
+            try {
+                const response = await fetch('/run-preview', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to launch preview');
+                }
+                
+                previewRunning = true;
+                updatePreviewStatus(true);
+                startPreviewStatusCheck();
+                
+                addMessage('UI preview launched! The window should now be open on your desktop.', 'ai');
+                showToast('Preview started successfully!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage(`Error running preview: ${error.message}`, 'ai');
+                showToast(`Error running preview: ${error.message}`, 'error');
+            } finally {
+                previewButton.disabled = false;
+                previewButton.classList.remove('processing');
+            }
+        }
+        
+        async function stopPreview() {
+            if (!previewRunning) {
+                showToast('No preview is running!', 'error');
+                return;
+            }
+            
+            stopButton.disabled = true;
+            stopButton.classList.add('processing');
+            
+            try {
+                const response = await fetch('/stop-preview', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to stop preview');
+                }
+                
+                previewRunning = false;
+                updatePreviewStatus(false);
+                stopPreviewStatusCheck();
+                
+                addMessage('Preview stopped.', 'ai');
+                showToast('Preview stopped successfully!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                showToast(`Error stopping preview: ${error.message}`, 'error');
+            } finally {
+                stopButton.disabled = false;
+                stopButton.classList.remove('processing');
+            }
+        }
+        
+        function startPreviewStatusCheck() {
+            stopPreviewStatusCheck(); // Clear any existing interval
+            
+            previewStatusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/preview-status');
+                    const data = await response.json();
+                    
+                    updatePreviewStatus(data.isRunning);
+                    
+                    if (!data.isRunning && previewRunning) {
+                        previewRunning = false;
+                        stopPreviewStatusCheck();
+                        addMessage('Preview window was closed.', 'ai');
+                    }
+                } catch (error) {
+                    console.error('Error checking preview status:', error);
+                }
+            }, 2000); // Check every 2 seconds
+        }
+        
+        function stopPreviewStatusCheck() {
+            if (previewStatusInterval) {
+                clearInterval(previewStatusInterval);
+                previewStatusInterval = null;
+            }
+        }
+        
+        function updatePreviewStatus(isRunning) {
+            previewRunning = isRunning;
+            
+            if (isRunning) {
+                previewStatus.textContent = 'Preview running';
+                previewStatus.className = 'preview-status status-running';
+                previewButton.disabled = true;
+                stopButton.disabled = false;
+                
+                // Ensure visibility of buttons
+                previewButton.classList.remove('processing');
+                previewButton.style.opacity = '0.65';
+                stopButton.classList.remove('processing');
+            } else {
+                previewStatus.textContent = 'Preview not running';
+                previewStatus.className = 'preview-status status-stopped';
+                previewButton.disabled = false;
+                stopButton.disabled = true;
+                
+                // Ensure visibility of buttons
+                previewButton.classList.remove('processing');
+                stopButton.classList.remove('processing');
+                stopButton.style.opacity = '0.65';
+            }
+        }
+
+        function addMessage(content, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            messageDiv.textContent = content;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function toggleInstructionsPanel() {
+            if (instructionsContent.style.display === 'none') {
+                instructionsContent.style.display = 'block';
+                toggleInstructions.textContent = 'Hide';
+            } else {
+                instructionsContent.style.display = 'none';
+                toggleInstructions.textContent = 'Show';
+            }
+        }
+        
+        function showToast(message, type = 'success') {
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            // Auto-hide after 5 seconds
+            clearTimeout(window.toastTimeout);
+            window.toastTimeout = setTimeout(() => {
+                hideToast();
+            }, 5000);
+        }
+        
+        function hideToast() {
+            toast.className = 'toast';
+            // Clear the message after the transition completes
+            setTimeout(() => {
+                if (!toast.classList.contains('show')) {
+                    document.getElementById('toast-message').textContent = '';
+                }
+            }, 300);
+        }
+        
+        // Add close button listener
+        document.getElementById('toast-close').addEventListener('click', hideToast);
+        
+        // Initialize toast state
+        hideToast();
+        
+        // Check preview status on load
+        updatePreviewStatus(false);
+    </script>
+</body>
+</html>
