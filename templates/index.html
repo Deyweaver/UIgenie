@@ -621,6 +621,9 @@
             // Add user message to chat
             addMessage(prompt, 'user');
             
+            // Clear any previous code
+            codeEditor.setValue('');
+            
             // Display loading state
             sendButton.disabled = true;
             sendButton.classList.add('processing');
@@ -628,46 +631,107 @@
             sendLoading.style.display = 'inline-block';
 
             try {
-                const response = await fetch('/generate', {
+                // Create an EventSource for streaming response
+                const streamUrl = new URL('/generate-stream', window.location.origin);
+                
+                // First notify the server we're starting a streaming request
+                await fetch('/generate', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ prompt })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, stream: true })
                 });
-
-                const data = await response.json();
                 
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                // Update code editor
-                codeEditor.setValue(data.code);
+                // Create event source for streaming
+                const eventSource = new EventSource(streamUrl);
+                let accumulatedCode = '';
                 
-                // Add AI message to chat
-                addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
+                // Listen for messages
+                eventSource.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        // Check if this is a completion message
+                        if (data.complete) {
+                            // Update the final code
+                            codeEditor.setValue(data.code);
+                            
+                            // Clean up
+                            eventSource.close();
+                            
+                            // Add AI message to chat
+                            addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
+                            
+                            // Show success toast
+                            showToast('Code generated successfully!', 'success');
+                            
+                            // Reset UI state
+                            resetUIState();
+                            return;
+                        }
+                        
+                        // Handle error
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        
+                        // Update code editor with accumulated code
+                        if (data.code) {
+                            accumulatedCode = data.code;
+                            codeEditor.setValue(accumulatedCode);
+                            
+                            // Update button text to show progress
+                            sendButtonText.textContent = 'Generating...';
+                        }
+                    } catch (e) {
+                        console.error('Error parsing stream data:', e);
+                        eventSource.close();
+                        showToast(`Error processing response: ${e.message}`, 'error');
+                        resetUIState();
+                    }
+                };
                 
-                // Show success toast
-                showToast('Code generated successfully!', 'success');
+                // Handle errors
+                eventSource.onerror = function(error) {
+                    console.error('EventSource error:', error);
+                    eventSource.close();
+                    addMessage('Error generating UI code. Please try again.', 'ai');
+                    showToast('Error generating code. Connection lost.', 'error');
+                    resetUIState();
+                };
+                
+                // POST the actual prompt to initiate streaming
+                fetch(streamUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt })
+                }).catch(error => {
+                    console.error('Fetch error:', error);
+                    eventSource.close();
+                    showToast(`Error: ${error.message}`, 'error');
+                    resetUIState();
+                });
+                
             } catch (error) {
                 console.error('Error:', error);
                 addMessage(`Error: ${error.message}`, 'ai');
                 showToast(`Error: ${error.message}`, 'error');
-            } finally {
-                // Always clear input regardless of success or failure
-                chatInput.value = '';
-                chatInput.style.height = 'auto'; // Reset any height adjustments
-                
-                // Reset UI state
-                sendButton.disabled = false;
-                sendButton.classList.remove('processing');
-                sendButtonText.textContent = 'Generate UI';
-                sendLoading.style.display = 'none';
-                
-                // Focus the input for the next message
-                setTimeout(() => chatInput.focus(), 0);
+                resetUIState();
             }
+        }
+        
+        function resetUIState() {
+            // Clear input regardless of success or failure
+            chatInput.value = '';
+            chatInput.style.height = 'auto'; // Reset any height adjustments
+            
+            // Reset UI state
+            sendButton.disabled = false;
+            sendButton.classList.remove('processing');
+            sendButtonText.textContent = 'Generate UI';
+            sendLoading.style.display = 'none';
+            
+            // Focus the input for the next message
+            setTimeout(() => chatInput.focus(), 0);
         }
 
         async function saveInstructions() {
