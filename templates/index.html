@@ -69,6 +69,7 @@
             flex-direction: column;
             height: 100%;
             border-right: 1px solid var(--ms-color-gray-30);
+            overflow: hidden; /* Prevent overflow */
         }
         
         .code-container {
@@ -113,6 +114,7 @@
             display: flex;
             flex-direction: column;
             background-color: var(--ms-color-gray-10);
+            min-height: 100px; /* Ensure minimum height */
         }
         
         .message {
@@ -424,6 +426,9 @@
             padding: 12px 16px;
             border-top: 1px solid var(--ms-color-gray-30);
             background-color: var(--ms-color-gray-10);
+            max-height: 180px; /* Limit the height */
+            overflow-y: auto; /* Add scroll if content exceeds height */
+            transition: max-height 0.3s ease;
         }
         
         .panel-header {
@@ -462,7 +467,9 @@
             font-family: var(--ms-font-family);
             font-size: var(--ms-font-size-small);
             resize: vertical;
-            height: 80px;
+            height: 60px; /* Reduced height */
+            min-height: 40px;
+            max-height: 100px;
             outline: none;
         }
         
@@ -489,12 +496,12 @@
                 </div>
             </div>
             
-            <div class="custom-instructions-panel" id="instructions-panel">
+            <div class="custom-instructions-panel" id="instructions-panel" style="max-height: 40px;">
                 <div class="panel-header">
                     <span class="panel-title">Custom Instructions</span>
-                    <button class="panel-toggle" id="toggle-instructions">Hide</button>
+                    <button class="panel-toggle" id="toggle-instructions">Show</button>
                 </div>
-                <div class="panel-content" id="instructions-content">
+                <div class="panel-content" id="instructions-content" style="display: none;">
                     <textarea class="instructions-textarea" id="custom-instructions" 
                         placeholder="Add custom instructions for the AI (e.g., 'Use light mode', 'Add input validation')..."></textarea>
                     <div class="button-container">
@@ -857,13 +864,22 @@
         }
         
         function toggleInstructionsPanel() {
+            const panel = document.getElementById('instructions-panel');
+            
             if (instructionsContent.style.display === 'none') {
                 instructionsContent.style.display = 'block';
                 toggleInstructions.textContent = 'Hide';
+                panel.style.maxHeight = '180px';
             } else {
                 instructionsContent.style.display = 'none';
                 toggleInstructions.textContent = 'Show';
+                panel.style.maxHeight = '40px'; // Just enough for the header
             }
+            
+            // Ensure chat container properly adjusts
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 300);
         }
         
         function showToast(message, type = 'success') {
