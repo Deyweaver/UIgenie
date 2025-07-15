@@ -163,6 +163,9 @@
             resize: none;
             outline: none;
             transition: border-color var(--ms-motion-duration-1) var(--ms-motion-ease-out);
+            overflow: hidden; /* Hide scrollbar during auto-resize */
+            min-height: 40px;  /* Minimum height */
+            max-height: 120px; /* Maximum height before scrolling */
         }
         
         .chat-input:focus {
@@ -585,6 +588,16 @@
         stopButton.addEventListener('click', stopPreview);
         toggleInstructions.addEventListener('click', toggleInstructionsPanel);
         
+        // Auto-resize the chat input as the user types
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            const newHeight = Math.min(this.scrollHeight, 120); // Max 120px height
+            this.style.height = newHeight + 'px';
+            
+            // Add overflow scrolling if content exceeds max height
+            this.style.overflowY = this.scrollHeight > 120 ? 'auto' : 'hidden';
+        });
+        
         // Enter key to send message
         chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -628,9 +641,6 @@
                 // Add AI message to chat
                 addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
                 
-                // Clear input
-                chatInput.value = '';
-                
                 // Show success toast
                 showToast('Code generated successfully!', 'success');
             } catch (error) {
@@ -638,10 +648,18 @@
                 addMessage(`Error: ${error.message}`, 'ai');
                 showToast(`Error: ${error.message}`, 'error');
             } finally {
+                // Always clear input regardless of success or failure
+                chatInput.value = '';
+                chatInput.style.height = 'auto'; // Reset any height adjustments
+                
+                // Reset UI state
                 sendButton.disabled = false;
                 sendButton.classList.remove('processing');
                 sendButtonText.textContent = 'Generate UI';
                 sendLoading.style.display = 'none';
+                
+                // Focus the input for the next message
+                setTimeout(() => chatInput.focus(), 0);
             }
         }
 
