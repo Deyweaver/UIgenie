@@ -58,5 +58,6 @@ This Flask-based AI application allows you to create beautiful CustomTkinter des
 - Complex UI layouts might require iterative refinements
 - The preview functionality depends on your local environment setup
 
+## License
 
-DOPE!
+MIT
