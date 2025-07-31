@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 from dotenv import load_dotenv
 import tkinter as tk
@@ -59,12 +59,8 @@ app_state = AppState()
 # Register cleanup function to run on exit
 atexit.register(app_state.cleanup)
 
-def get_gemini_response(prompt, stream=False):
-    """Get a response from Gemini model
-    
-    If stream=True, this will return a generator that yields chunks of text
-    Otherwise, it returns the complete response
-    """
+def get_gemini_response(prompt):
+    """Get a response from Gemini model"""
     if not GEMINI_API_KEY:
         return "GEMINI_API_KEY not set. Please add it to your .env file.", 400
         
@@ -96,23 +92,18 @@ def get_gemini_response(prompt, stream=False):
         5. Define a main app window variable called 'app'
         """
         
-        if stream:
-            response = model.generate_content(full_prompt, stream=True)
-            # Return the streaming response
-            return response
-        else:
-            response = model.generate_content(full_prompt)
+        response = model.generate_content(full_prompt)
+        
+        if not hasattr(response, 'text'):
+            print(f"Unexpected response format: {response}")
+            return "Unexpected response format from Gemini API", 500
             
-            if not hasattr(response, 'text'):
-                print(f"Unexpected response format: {response}")
-                return "Unexpected response format from Gemini API", 500
-                
-            extracted_code = extract_code(response.text)
+        extracted_code = extract_code(response.text)
+        
+        if not extracted_code or not isinstance(extracted_code, str):
+            return "Failed to extract valid code from the API response", 500
             
-            if not extracted_code or not isinstance(extracted_code, str):
-                return "Failed to extract valid code from the API response", 500
-                
-            return extracted_code
+        return extracted_code
     except Exception as e:
         print(f"Error in get_gemini_response: {str(e)}")
         return str(e), 500
@@ -211,7 +202,6 @@ def index():
 def generate():
     data = request.json
     prompt = data.get('prompt')
-    stream_mode = data.get('stream', False)
     
     if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
@@ -222,89 +212,33 @@ def generate():
         "content": prompt
     })
     
-    if not stream_mode:
-        # Generate UI code based on prompt (non-streaming mode)
-        response = get_gemini_response(prompt)
-        
-        # Check if response is a tuple (error case)
-        if isinstance(response, tuple):
-            error_message, status_code = response
-            return jsonify({"error": error_message}), status_code
-        
-        # Ensure we have a string
-        code = str(response) if response is not None else ""
-        app_state.ui_code = code
-        
-        # Add assistant response to conversation history
-        app_state.conversation_history.append({
-            "role": "assistant",
-            "content": f"Generated UI code:\n```python\n{code}\n```"
-        })
-        
-        # Save the code to a temporary file (but don't run it yet)
-        if code.strip():
-            save_ui_code(code)
-        
-        return jsonify({
-            "code": code,
-            "success": True,
-            "message": "Code generated successfully. Click Preview to run the UI."
-        })
-    else:
-        # Return a flag to indicate successful start of streaming
-        return jsonify({
-            "success": True,
-            "streaming": True,
-            "message": "Streaming started"
-        })
-
-@app.route('/generate-stream', methods=['POST'])
-def generate_stream():
-    """Stream the generated code as it's being created"""
-    data = request.json
-    prompt = data.get('prompt')
+    # Generate UI code based on prompt
+    response = get_gemini_response(prompt)
     
-    if not prompt:
-        return jsonify({"error": "No prompt provided"}), 400
-
-    def stream_generator():
-        try:
-            # Get streaming response
-            streaming_response = get_gemini_response(prompt, stream=True)
-            full_text = ""
-            
-            # Stream the chunks as they arrive
-            for chunk in streaming_response:
-                if hasattr(chunk, 'text'):
-                    chunk_text = chunk.text
-                    full_text += chunk_text
-                    # Extract any code from accumulated text so far
-                    current_code = extract_code(full_text)
-                    yield f"data: {json.dumps({'chunk': chunk_text, 'code': current_code})}\n\n"
-            
-            # Final extracted code
-            final_code = extract_code(full_text)
-            
-            # Store the complete code
-            app_state.ui_code = final_code
-            
-            # Add to conversation history
-            app_state.conversation_history.append({
-                "role": "assistant",
-                "content": f"Generated UI code:\n```python\n{final_code}\n```"
-            })
-            
-            # Save the code to a temporary file
-            if final_code.strip():
-                save_ui_code(final_code)
-                
-            # Send a completion message
-            yield f"data: {json.dumps({'complete': True, 'code': final_code})}\n\n"
-        except Exception as e:
-            print(f"Streaming error: {str(e)}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    # Check if response is a tuple (error case)
+    if isinstance(response, tuple):
+        error_message, status_code = response
+        return jsonify({"error": error_message}), status_code
     
-    return Response(stream_generator(), mimetype='text/event-stream')
+    # Ensure we have a string
+    code = str(response) if response is not None else ""
+    app_state.ui_code = code
+    
+    # Add assistant response to conversation history
+    app_state.conversation_history.append({
+        "role": "assistant",
+        "content": f"Generated UI code:\n```python\n{code}\n```"
+    })
+    
+    # Save the code to a temporary file (but don't run it yet)
+    if code.strip():
+        save_ui_code(code)
+    
+    return jsonify({
+        "code": code,
+        "success": True,
+        "message": "Code generated successfully. Click Preview to run the UI."
+    })
 
 @app.route('/update-instructions', methods=['POST'])
 def update_instructions():

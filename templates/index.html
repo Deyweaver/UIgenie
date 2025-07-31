@@ -476,28 +476,6 @@
         .instructions-textarea:focus {
             border-color: var(--ms-color-blue-primary);
         }
-        
-        /* Streaming animation for code editor */
-        .streaming-code {
-            position: relative;
-        }
-        
-        .streaming-code::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            animation: streaming 1.5s linear infinite;
-            pointer-events: none;
-        }
-        
-        @keyframes streaming {
-            0% { background-position: 200% 0; }
-            100% { background-position: 0 0; }
-        }
     </style>
 </head>
 <body>
@@ -586,9 +564,7 @@
             matchBrackets: true,
             tabSize: 4,
             indentUnit: 4,
-            indentWithTabs: false,
-            placeholder: '# Generated code will appear here...',
-            viewportMargin: Infinity
+            indentWithTabs: false
         });
 
         // Elements
@@ -645,12 +621,6 @@
             // Add user message to chat
             addMessage(prompt, 'user');
             
-            // Clear any previous code without changing editor appearance
-            codeEditor.setValue('// Generating code...');
-            
-            // Add streaming class to code editor
-            document.querySelector('.CodeMirror').classList.add('streaming-code');
-            
             // Display loading state
             sendButton.disabled = true;
             sendButton.classList.add('processing');
@@ -658,108 +628,46 @@
             sendLoading.style.display = 'inline-block';
 
             try {
-                // First initiate the streaming process with POST request
-                const initResponse = await fetch('/generate-stream', {
+                const response = await fetch('/generate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({ prompt })
                 });
+
+                const data = await response.json();
                 
-                if (!initResponse.ok) {
-                    throw new Error(`Server error: ${initResponse.status}`);
+                if (data.error) {
+                    throw new Error(data.error);
                 }
+
+                // Update code editor
+                codeEditor.setValue(data.code);
                 
-                // Read the response as a stream
-                const reader = initResponse.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                let accumulatedCode = '';
+                // Add AI message to chat
+                addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
                 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    
-                    if (done) {
-                        break;
-                    }
-                    
-                    // Process the chunk
-                    const chunk = decoder.decode(value, { stream: true });
-                    
-                    // Parse event data (each event starts with "data: ")
-                    const events = chunk.split("\n\n")
-                        .filter(line => line.startsWith("data: "))
-                        .map(line => JSON.parse(line.substring(6)));
-                    
-                    for (const data of events) {
-                        // Check if this is a completion message
-                        if (data.complete) {
-                            // Update the final code
-                            codeEditor.setValue(data.code);
-                            
-                            // Remove streaming animation
-                            document.querySelector('.CodeMirror').classList.remove('streaming-code');
-                            
-                            // Add AI message to chat
-                            addMessage('I\'ve generated your CustomTkinter UI! Click "Run Preview" to see it in action.', 'ai');
-                            
-                            // Show success toast
-                            showToast('Code generated successfully!', 'success');
-                            
-                            // Reset UI state
-                            resetUIState();
-                            return;
-                        }
-                        
-                        // Handle error
-                        if (data.error) {
-                            throw new Error(data.error);
-                        }
-                        
-                        // Update code editor with accumulated code
-                        if (data.code) {
-                            accumulatedCode = data.code;
-                            codeEditor.setValue(accumulatedCode);
-                            
-                            // Highlight new content with subtle animation
-                            if (data.chunk && data.chunk.length > 0) {
-                                const currentLength = accumulatedCode.length;
-                                // Ensure we're at the end of the editor
-                                codeEditor.setCursor(codeEditor.lineCount(), 0);
-                                
-                                // Update progress indicator
-                                const percentComplete = Math.min(95, Math.floor(currentLength / 500 * 100));
-                                sendButtonText.textContent = `Generating... ${percentComplete}%`;
-                            }
-                        }
-                    }
-                }
+                // Show success toast
+                showToast('Code generated successfully!', 'success');
             } catch (error) {
                 console.error('Error:', error);
-                document.querySelector('.CodeMirror').classList.remove('streaming-code');
                 addMessage(`Error: ${error.message}`, 'ai');
                 showToast(`Error: ${error.message}`, 'error');
-                resetUIState();
+            } finally {
+                // Always clear input regardless of success or failure
+                chatInput.value = '';
+                chatInput.style.height = 'auto'; // Reset any height adjustments
+                
+                // Reset UI state
+                sendButton.disabled = false;
+                sendButton.classList.remove('processing');
+                sendButtonText.textContent = 'Generate UI';
+                sendLoading.style.display = 'none';
+                
+                // Focus the input for the next message
+                setTimeout(() => chatInput.focus(), 0);
             }
-        }
-        
-        function resetUIState() {
-            // Remove streaming animation if still present
-            const codeMirrorElement = document.querySelector('.CodeMirror');
-            if (codeMirrorElement) {
-                codeMirrorElement.classList.remove('streaming-code');
-            }
-            
-            // Clear input regardless of success or failure
-            chatInput.value = '';
-            chatInput.style.height = 'auto'; // Reset any height adjustments
-            
-            // Reset UI state
-            sendButton.disabled = false;
-            sendButton.classList.remove('processing');
-            sendButtonText.textContent = 'Generate UI';
-            sendLoading.style.display = 'none';
-            
-            // Focus the input for the next message
-            setTimeout(() => chatInput.focus(), 0);
         }
 
         async function saveInstructions() {
