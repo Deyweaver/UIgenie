@@ -1,0 +1,61 @@
+name: Auto Release (Semantic Versioning)
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Git user
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Read and bump version (minor only)
+        id: bump_version
+        run: |
+          VERSION_FILE=version.txt
+          OLD_VERSION=$(cat $VERSION_FILE)
+          IFS='.' read -r MAJOR MINOR <<< "$OLD_VERSION"
+          
+          if [ "$MINOR" -ge 9 ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+          else
+            MINOR=$((MINOR + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR"
+          echo $NEW_VERSION > $VERSION_FILE
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit new version
+        run: |
+          git add version.txt
+          git commit -m "🔖 Release v${{ steps.bump_version.outputs.version }}"
+          git push
+
+      - name: Create Git tag
+        run: |
+          git tag v${{ steps.bump_version.outputs.version }}
+          git push origin v${{ steps.bump_version.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump_version.outputs.version }}
+          name: Release v${{ steps.bump_version.outputs.version }}
+          body: |
+            Auto-generated release from commit ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
